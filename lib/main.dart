@@ -1,22 +1,15 @@
 import 'package:flutter/material.dart';
-import 'package:hipster/auth_provider.dart';
-import 'package:hipster/login_screen.dart';
-import 'package:hipster/user_list_screen.dart';
-import 'package:hipster/user_model.dart';
-import 'package:hipster/user_provider.dart';
-import 'package:hipster/video_call_screen.dart';
+import 'package:hipster/feature/provider/auth_provider.dart';
+import 'package:hipster/feature/screen/login_screen.dart';
+import 'package:hipster/feature/screen/user_list_screen.dart';
+import 'package:hipster/feature/model/user_model.dart';
+import 'package:hipster/feature/provider/user_provider.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:provider/provider.dart';
 
-
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
-  // Initialize Hive
   await Hive.initFlutter();
-
-  // 2. --- ADD THIS LINE ---
-  // Register the adapter
   Hive.registerAdapter(UserAdapter());
 
   runApp(const MyApp());
@@ -33,18 +26,18 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => UserProvider()),
       ],
       child: MaterialApp(
-        title: 'Video Call App',
+        title: 'Hipster task',
         theme: ThemeData(
           primarySwatch: Colors.blue,
           visualDensity: VisualDensity.adaptivePlatformDensity,
         ),
-        home: const AuthWrapper(), // Ensure this isn't const if AuthWrapper isn't
+        home:
+            const AuthWrapper(), // Ensure this isn't const if AuthWrapper isn't
       ),
     );
   }
 }
 
-// This widget will reactively show Login or Home based on auth state
 class AuthWrapper extends StatelessWidget {
   const AuthWrapper({super.key});
 
@@ -53,9 +46,8 @@ class AuthWrapper extends StatelessWidget {
     final authProvider = context.watch<AuthProvider>();
 
     if (authProvider.isAuthenticated) {
-      // 🚨 Change this line to your desired screen 🚨
-      // return const UserListScreen();
-      return const VideoCallScreen(appId: 'c5b556bdf3e6446b850ee6cf14d17f99',channelName: 'hipster',token: '007eJxTYHB6Km1dGc0vPnHTbqtttXOOzPCLqF1/9MRrrrovYabzt79RYEg2TTI1NUtKSTNONTMxMUuyMDVITTVLTjM0STE0T7O0nB//O6MhkJGhRM6NlZEBAkF8doaMzILiktQiBgYA6EkhnQ==',);
+      return UserListScreen();
+      // return const VideoCallScreen(appId: 'c5b556bdf3e6446b850ee6cf14d17f99',channelName: 'hipster',token: '007eJxTYFA4e0lls/XBVQ/9L35d9LJqNnub+GOxt53d+qzRfn+7cpcpMCSbJpmamiWlpBmnmpmYmCVZmBqkppolpxmapBiap1laTljLmNkQyMgwo5SfhZEBAkF8doaMzILiktQiBgYAJY0hoA==',);
     } else {
       return const LoginScreen();
     }

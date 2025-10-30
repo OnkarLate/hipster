@@ -2,13 +2,13 @@ import 'package:agora_rtc_engine/agora_rtc_engine.dart';
 import 'package:flutter/foundation.dart';
 import 'package:permission_handler/permission_handler.dart';
 
-
 class AgoraProvider extends ChangeNotifier {
   RtcEngine? _engine;
   bool _isJoined = false;
   bool _isMuted = false;
   bool _isVideoDisabled = false;
   bool _isScreenSharing = false;
+  bool _permissionDenied = false;
   int? _remoteUid;
 
   RtcEngine? get engine => _engine;
@@ -16,13 +16,28 @@ class AgoraProvider extends ChangeNotifier {
   bool get isMuted => _isMuted;
   bool get isVideoDisabled => _isVideoDisabled;
   bool get isScreenSharing => _isScreenSharing;
+  bool get permissionDenied => _permissionDenied;
   int? get remoteUid => _remoteUid;
 
-  Future<void> initAgora(String appId, String channelName, String? token) async {
-    // 1. Request permissions
-    await [Permission.microphone, Permission.camera].request();
+  Future<void> initAgora(
+      String appId,
+      String channelName,
+      String? token,
+      ) async {
 
-    // 2. Create engine
+    final statuses = await [Permission.microphone, Permission.camera].request();
+
+    final micGranted = statuses[Permission.microphone]?.isGranted ?? false;
+    final camGranted = statuses[Permission.camera]?.isGranted ?? false;
+
+    if (!micGranted || !camGranted) {
+      _permissionDenied = true;
+      notifyListeners();
+      return;
+    }
+
+    _permissionDenied = false;
+
     _engine = createAgoraRtcEngine();
     await _engine!.initialize(RtcEngineContext(appId: appId));
 
@@ -36,7 +51,8 @@ class AgoraProvider extends ChangeNotifier {
           _remoteUid = remoteUid;
           notifyListeners();
         },
-        onUserOffline: (RtcConnection connection, int remoteUid, UserOfflineReasonType reason) {
+        onUserOffline:
+            (RtcConnection connection, int remoteUid, UserOfflineReasonType reason) {
           _remoteUid = null;
           notifyListeners();
         },
@@ -48,49 +64,54 @@ class AgoraProvider extends ChangeNotifier {
       ),
     );
 
-    // 3. Enable video and join channel
     await _engine!.enableVideo();
     await _engine!.startPreview();
+
     await _engine!.joinChannel(
       token: token!,
       channelId: channelName,
-      uid: 0, // 0 lets Agora assign a UID
-      options: const ChannelMediaOptions(),
+      uid: 0,
+      options: const ChannelMediaOptions(
+        clientRoleType: ClientRoleType.clientRoleBroadcaster,
+        channelProfile: ChannelProfileType.channelProfileCommunication,
+        publishCameraTrack: true,
+        publishMicrophoneTrack: true,
+        autoSubscribeAudio: true,
+        autoSubscribeVideo: true,
+      ),
     );
   }
 
-  // --- Control Methods ---
-
   void toggleAudio() {
+    if (_engine == null) return;
     _isMuted = !_isMuted;
     _engine!.muteLocalAudioStream(_isMuted);
     notifyListeners();
   }
 
   void toggleVideo() {
+    if (_engine == null) return;
     _isVideoDisabled = !_isVideoDisabled;
     _engine!.enableLocalVideo(!_isVideoDisabled);
     notifyListeners();
   }
 
-  // --- [START] CORRECTED METHOD ---
   Future<void> toggleScreenShare() async {
+    if (_engine == null) return;
+
     if (_isScreenSharing) {
-      // --- Stop Screen Share ---
       await _engine!.stopScreenCapture();
-      // Switch back to camera
-      await _engine!.updateChannelMediaOptions(const ChannelMediaOptions(
-        publishCameraTrack: true,
-        publishScreenTrack: false,
-      ));
+      await _engine!.updateChannelMediaOptions(
+        const ChannelMediaOptions(
+          publishCameraTrack: true,
+          publishScreenTrack: false,
+          publishScreenCaptureVideo: false,
+        ),
+      );
       _isScreenSharing = false;
     } else {
-      // --- Start Screen Share ---
-
-      // Define the screen capture parameters.
-      // You can adjust dimensions and framerate as needed.
       const ScreenCaptureParameters2 parameters = ScreenCaptureParameters2(
-        captureAudio: true, // Capture system audio
+        captureAudio: true,
         captureVideo: true,
         videoParams: ScreenVideoParameters(
           dimensions: VideoDimensions(width: 1280, height: 720),
@@ -98,34 +119,39 @@ class AgoraProvider extends ChangeNotifier {
         ),
       );
 
-      // Pass the parameters to startScreenCapture
       await _engine!.startScreenCapture(parameters);
-
-      // Switch to publishing screen track
-      await _engine!.updateChannelMediaOptions(const ChannelMediaOptions(
-        publishCameraTrack: false, // Turn off camera
-        publishScreenTrack: true, // Turn on screen share
-        publishMicrophoneTrack: true, // Keep microphone on
-      ));
+      await _engine!.updateChannelMediaOptions(
+        const ChannelMediaOptions(
+          publishCameraTrack: false,
+          publishScreenTrack: true,
+          publishScreenCaptureVideo: true,
+          publishMicrophoneTrack: false,
+        ),
+      );
       _isScreenSharing = true;
     }
     notifyListeners();
   }
-  // --- [END] CORRECTED METHOD ---
-
-  // --- Cleanup ---
 
   Future<void> leaveChannel() async {
     if (_engine != null) {
-      if (_isScreenSharing) {
-        await _engine!.stopScreenCapture();
+      try {
+        if (_isScreenSharing) {
+          await _engine!.stopScreenCapture();
+        }
+        await _engine!.leaveChannel();
+        await _engine!.stopPreview();
+        await _engine!.release();
+      } catch (e) {
+        debugPrint("Error releasing Agora Engine: $e");
+      } finally {
+        _engine = null;
       }
-      await _engine!.leaveChannel();
-      await _engine!.release();
-      _engine = null;
     }
+
     _isJoined = false;
     _isScreenSharing = false;
     _remoteUid = null;
+    notifyListeners();
   }
 }

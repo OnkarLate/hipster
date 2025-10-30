@@ -1,4 +1,4 @@
-import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 
 class AuthProvider extends ChangeNotifier {
   bool _isLoading = false;
@@ -7,21 +7,25 @@ class AuthProvider extends ChangeNotifier {
   bool get isLoading => _isLoading;
   bool get isAuthenticated => _isAuthenticated;
 
+  bool _isPasswordVisible = false;
+
+  bool get isPasswordVisible => _isPasswordVisible;
+
+  void toggleVisibility() {
+    _isPasswordVisible = !_isPasswordVisible;
+    notifyListeners();
+  }
+
   Future<void> login(String email, String password) async {
     _setLoading(true);
 
-    // 1. Mock API call
     await Future.delayed(const Duration(seconds: 1));
 
-    // 2. Mock Authentication Logic (using ReqRes.in login)
-    // Hardcoded: "eve.holt@reqres.in", "cityslicka"
-    // Or simpler:
-    if (email == "test@test.com" && password == "password") {
+    if (email == "omkarlate97@gmail.com" && password == "12345678") {
       _isAuthenticated = true;
       _setLoading(false);
     } else {
       _setLoading(false);
-      // Let the UI know about the failure
       throw Exception('Invalid email or password');
     }
   }
